@@ -1,0 +1,222 @@
+
+package oauth
+
+import (
+	"urllib";
+	"os";
+	"sort";
+	"io";
+	"http";
+	"log";
+	"rand";
+	// "bufio";
+	"strings";
+	"strconv";
+	"bytes";
+	"time";
+	"crypto/hmac";
+	"encoding/base64";
+	"container/vector";
+)
+
+type AuthToken struct {Service string; Token string; Secret string; Created *time.Time};
+
+// TODO: discover/write some persistence layer
+// TODO: real persistence, not in-memory, thread-unsafe nonsense
+var tokens = vector.New(100);
+
+func create_auth_token(token string, secret string) *AuthToken {
+	t := new(AuthToken);
+	t.Token = token;
+	t.Secret = secret;
+	t.Created = time.UTC();
+	tokens.Push(*t); // TODO: obvious this is terrible "persistence"
+	return t;
+}
+
+// TODO: obvious things this is terrible
+func get_auth_secret(auth_token string) string {
+	for n := range tokens.Data() {
+		t := tokens.At(n);
+		token, _ := t.(AuthToken);
+		if token.Token == auth_token { return token.Secret };
+	}
+	return "BAD_TOKEN"; // TODO: better handling
+}
+
+type AuthClient struct {
+	service_name string; // e.g. "twitter" "yahoo" etc.
+	consumer_key string;
+	consumer_secret string;
+	request_url string; // where to request tokens
+	access_url string; // where to exchange access tokens
+	authorization_url string; // where to authorize
+	callback_url string; // where authorization callback should return
+}
+
+func (c *AuthClient) get_auth_token() *AuthToken {
+	r, finalUrl, err := c.Make_request(c.request_url, map[string]string{"oauth_callback":c.callback_url}, "", false);
+	if r != nil {
+		log.Stderrf("get_auth_token:status:%s:finalUrl:%s", r.Status, finalUrl);
+		for k, v := range r.Header {
+			log.Stderrf("header:%s:%s", k, v);
+		}
+	}
+	else {
+		log.Stderrf("get_auth_token:finalUrl:%s:err:%s", finalUrl, err.String());
+	}
+
+	// parse out the tokens in data
+	// buffr := bufio.NewReader(r.Body);
+	// reqr, err := http.ReadRequest(buffr);
+	// oauth_token := reqr.FormValue("oauth_token");
+	// oauth_token_secret := reqr.FormValue("oauth_token_secret");
+	// r.Body.Close();
+	// var b []byte; 
+	kvmap := get_result(r);
+	// oauth_callback_confirmed=true assert?
+	token := create_auth_token( kvmap["oauth_token"], kvmap["oauth_token_secret"] );
+	return token;
+}
+
+func get_result(r *http.Response) map[string]string {
+        b, _ := io.ReadAll(r.Body);
+	print ("RESULT:");
+	s := bytes.NewBuffer(b).String();
+	println (s);
+	vals := strings.Split(s, "&", 0);
+	kvmap := make(map[string]string, len(vals));
+	for i := range vals { // TODO: this crashes server for bad response right now
+		kv := strings.Split(vals[i], "=", 2);
+		kvmap[kv[0]] = kv[1];
+	}
+	// TODO: close r.Body ?
+	return kvmap;
+}
+
+func NewAuthClient(service_name string, consumer_key string, consumer_secret string, callback_url string, request_url string, access_url string, authorization_url string) *AuthClient {
+	c := new(AuthClient);
+	c.consumer_key = consumer_key;
+	c.consumer_secret = consumer_secret;
+	c.request_url = request_url;
+	c.access_url = access_url;
+	c.authorization_url = authorization_url;
+	c.callback_url = callback_url;
+	return c;
+}
+
+// authorization_type: authenticate | authorize
+func NewTwitterClient(consumer_key string, consumer_secret string, callback_url string, authorization_type string) *AuthClient {
+	return NewAuthClient("twitter", consumer_key, consumer_secret, callback_url, "http://twitter.com/oauth/request_token", "http://twitter.com/oauth/access_token", "http://twitter.com/oauth/"+authorization_type);
+}
+
+func (c *AuthClient) Get_authorization_url() string {
+	token := c.get_auth_token();
+	log.Stderrf("get_authorization_url:token:%s:secret:%s", token.Token, token.Secret);
+	return c.authorization_url + "?oauth_token=" + token.Token + "&oauth_callback=" + urllib.Urlquote(c.callback_url);
+}
+
+// TODO: all
+func (c *AuthClient) Get_user_info(auth_token string, auth_verifier string) map[string]string {
+	// get secret
+	auth_secret := get_auth_secret(auth_token);
+	log.Stderrf("AUTH_SECRET:%s", auth_secret); // should client error if not found
+	r, finalUrl, err := c.Make_request(c.access_url, map[string]string{"oauth_token":auth_token, "oauth_verifier":auth_verifier}, auth_secret, false);
+	if r != nil {
+		log.Stderrf("get_access_token:status:%s:finalUrl:%s", r.Status, finalUrl);
+		for k, v := range r.Header {
+			log.Stderrf("header:%s:%s", k, v);
+		}
+	}
+	else {
+		log.Stderrf("get_access_token:finalUrl:%s:err:%s", finalUrl, err.String());
+	}
+	kvmap := get_result(r);
+	return kvmap;
+}
+
+func Digest(key string, m string) string {
+	myhash := hmac.NewSHA1(strings.Bytes(key));
+	myhash.Write(strings.Bytes(m));
+	signature := bytes.TrimSpace(myhash.Sum());
+	digest := make([]byte, base64.StdEncoding.EncodedLen(len(signature)));
+	base64.StdEncoding.Encode(digest, signature);
+	digest_str := strings.TrimSpace(bytes.NewBuffer(digest).String());
+	return digest_str;
+}
+
+// build the message to sign/digest
+func BuildMessage(url string, params map[string]string) string {
+        i := 0;
+	keys := make([]string,len(params));
+        for k,_ := range params {
+		keys[i] = k;
+		i = i + 1;
+	}
+	sort.SortStrings(keys);
+
+	j := 0;
+        mss := make([]string,len(params));
+	for k := range keys {
+                mss[j] = urllib.Urlquote(keys[k]) + "=" + urllib.Urlquote(params[keys[k]]);
+                j = j + 1;
+        }
+        ms := strings.Join(mss, "&");
+        log.Stderrf("ms:%s", ms);
+
+        m := strings.Join([]string{"GET", urllib.Urlquote(url), urllib.Urlquote(ms)}, "&");
+        log.Stderrf("m:%s", m);
+
+	return m;
+}
+
+func (c *AuthClient) Make_request(url string, additional_params map[string]string, token_secret string, protected bool) (r *http.Response, finalURL string, err os.Error) {
+
+	log.Stderrf("make_request:url:%s:", url);
+	for k,v := range additional_params {
+		log.Stderrf("make_request:%s:%s:", k, v);
+	}
+
+	params := make(map[string]string);
+	params["oauth_consumer_key"] = c.consumer_key;
+	params["oauth_signature_method"] = "HMAC-SHA1";
+	params["oauth_timestamp"] =  strconv.Itoa64(time.Seconds());
+	params["oauth_nonce"] = strconv.Itoa64(rand.Int63());
+	params["oauth_version"] = "1.0";
+
+	//if token != "" {
+	//	params["oauth_token"] = token;
+	//}
+	//else {
+	//	params["oauth_callback"] = c.callback_url;
+	//}
+
+	// typically: oauth_token, oauth_callback, and/or oauth_verifier
+	for k,v := range additional_params {
+		params[k] = v;
+	}
+
+	for k,v := range params {
+		log.Stderrf("param:%s:%s:", k, v);
+	}
+
+	m := BuildMessage(url, params);
+
+	key := c.consumer_secret + "&" + token_secret;
+	log.Stderrf("key:%s", key);
+
+	digest_str := Digest(key, m);
+	params["oauth_signature"] = digest_str;
+	log.Stderrf("digest_str:%s", digest_str);
+
+	sparams := urllib.Urlencode(params);
+	log.Stderrf("sparams:%s", sparams);
+
+	rurl := strings.Join([]string{url,sparams}, "?");
+
+	log.Stderrf("make_request:rurl:%s", rurl);
+
+	// TODO: no easy way to add header for Authorization:OAuth when protected...?
+	return http.Get(rurl);
+}
+
