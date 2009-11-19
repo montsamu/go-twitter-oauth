@@ -22,7 +22,7 @@ import (
 type AuthToken struct {Service string; Token string; Secret string; Created *time.Time};
 
 // TODO: discover/write some persistence layer
-// TODO: real persistence, not in-memory, thread-unsafe nonsense
+// TODO: real persistence, not in-memory, thread-unsafe? nonsense
 var tokens = vector.New(100);
 
 func create_auth_token(token string, secret string) *AuthToken {
@@ -41,7 +41,7 @@ func get_auth_secret(auth_token string) string {
 		token, _ := t.(AuthToken);
 		if token.Token == auth_token { return token.Secret };
 	}
-	return "BAD_TOKEN"; // TODO: better handling
+	return "BAD_TOKEN"; // TODO: better handling this is terrible
 }
 
 type AuthClient struct {
@@ -72,13 +72,13 @@ func (c *AuthClient) get_auth_token(callback_url string) *AuthToken {
 	// oauth_token_secret := reqr.FormValue("oauth_token_secret");
 	// r.Body.Close();
 	// var b []byte; 
-	kvmap := get_result(r);
+	kvmap := parse_response(r);
 	// oauth_callback_confirmed=true assert?
 	token := create_auth_token( kvmap["oauth_token"], kvmap["oauth_token_secret"] );
 	return token;
 }
 
-func get_result(r *http.Response) map[string]string {
+func parse_response(r *http.Response) map[string]string {
         b, _ := io.ReadAll(r.Body);
 	print ("RESULT:");
 	s := bytes.NewBuffer(b).String();
@@ -115,7 +115,7 @@ func (c *AuthClient) GetAuthorizationUrl(callback_url string) string {
 }
 
 // TODO: all
-func (c *AuthClient) Get_user_info(auth_token string, auth_verifier string) map[string]string {
+func (c *AuthClient) GetUserInfo(auth_token string, auth_verifier string) map[string]string {
 	// get secret
 	auth_secret := get_auth_secret(auth_token);
 	log.Stderrf("AUTH_SECRET:%s", auth_secret); // should client error if not found
@@ -129,7 +129,7 @@ func (c *AuthClient) Get_user_info(auth_token string, auth_verifier string) map[
 	else {
 		log.Stderrf("get_access_token:finalUrl:%s:err:%s", finalUrl, err.String());
 	}
-	kvmap := get_result(r);
+	kvmap := parse_response(r);
 	return kvmap;
 }
 
