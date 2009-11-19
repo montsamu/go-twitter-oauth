@@ -4,6 +4,7 @@ package main
 import (
 	"oauth";
 	"session";
+	"persist";
 	"flag";
 	"http";
 	"io";
@@ -22,7 +23,8 @@ var twitter_consumer_secret = "my_consumer_secret";
 var twitter_callback_url = "http://my.base.url/callback/twitter";
 var twitter_client = oauth.NewTwitterClient(twitter_consumer_key, twitter_consumer_secret, "authenticate");
 
-var session_service = session.NewSessionService("Example-Id");
+var session_persist_service = persist.NewPersistService("sessions");
+var session_service = session.NewSessionService("Example-Id", session_persist_service);
 
 var addr = flag.String("addr", ":8080", "http service address")
 var maxprocs = flag.Int("maxprocs", 4, "max server processes")

@@ -7,25 +7,28 @@ import (
 	"strings";
 	"strconv";
 	"log";
+	"persist";
 	// "json";
 )
 
-type Session struct {Id string; Data map[string]string}; // Data was json.Json
+// type Session struct {Id string; Data map[string]string}; // Data was json.Json
 
-type SessionService struct {Name string; Sessions map[string]Session};
+// TODO: migrate in-memory session map to persistence
+type SessionService struct {Name string; persist_service *persist.PersistService}; // sessions map[string]Session};
 
 // e.g. name "MyService-Id"
-func NewSessionService(name string) *SessionService {
+func NewSessionService(name string, ps *persist.PersistService) *SessionService {
 	ss := new(SessionService);
 	ss.Name = name;
-	ss.Sessions = make(map[string]Session); // TODO: persistence
+	ss.persist_service = ps;
+	// ss.sessions = make(map[string]Session); // TODO: persistence
 	return ss;
 }
 
 // TODO: synchronized for multithreading
 // TODO: use real persistent sessions not in-memory map
 // TODO: refactor out "cookie" handling
-func (ss *SessionService) GetSession(c *http.Conn, req *http.Request) *Session {
+func (ss *SessionService) GetSession(c *http.Conn, req *http.Request) *persist.Model {
 	log.Stderrf(">GetSession");
 	cookie_val, has_cookie := req.Header["Cookie"];
 	if has_cookie {
@@ -49,10 +52,11 @@ func (ss *SessionService) GetSession(c *http.Conn, req *http.Request) *Session {
 			log.Stderrf(":GetSession:no_cookie_v");
 			return ss.StartSession(c, req, map[string]string{}); // json.Null);
 		} else {
-			s, has_session := ss.Sessions[cookie_v];
+			s, has_session := ss.persist_service.Get(cookie_v);
+				// ss.sessions[cookie_v];
 			if has_session {
 				log.Stderrf(":GetSession:has_session:%s", s.Id);
-				return &s;
+				return s;
 			}
 			else {
 				log.Stderrf(":GetSession:no_session");
@@ -67,16 +71,18 @@ func (ss *SessionService) GetSession(c *http.Conn, req *http.Request) *Session {
 	panic("unreachable");
 }
 
-func (ss *SessionService) StartSession(c *http.Conn, req *http.Request, d map[string]string) *Session { // d was json.Json
+func (ss *SessionService) StartSession(c *http.Conn, req *http.Request, d map[string]string) *persist.Model { // d was json.Json
 	log.Stderrf(">StartSession:");
-	s := new(Session);
 	// TODO: uuid4 generate sid instead of "sid-" plus random
-	s.Id = ss.Name + "-" + strconv.Itoa(rand.Int());
-	s.Data = d;
+	// s := new(Session);
+	// s.Id = ss.Name + "-" + strconv.Itoa(rand.Int());
+	// s.Data = d;
+	s := ss.persist_service.New(ss.Name+"-"+strconv.Itoa(rand.Int()), d);
 	// TODO: refactor out cookie things
+	// TODO: cookie domain
 	c.SetHeader("Set-Cookie", ss.Name+"=" + s.Id + "; expires=Fri, 31-Dec-2011 23:59:59 GMT; path=/; domain=sol.caveman.org");
 	// TODO: real thing not unprotected (threadwise) in-memory only "sessions"
-	ss.Sessions[s.Id] = *s;
+	// ss.sessions[s.Id] = *s;
 	return s;
 }
 

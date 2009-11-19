@@ -15,16 +15,11 @@ func urlquoter(c int, safe string) []byte {
 	safe_bytes := strings.Bytes(safe);
 	c_bytes := make([]byte, utf8.RuneLen(c));
 	utf8.EncodeRune(c, c_bytes);
-	if bytes.Index(safe_bytes, c_bytes) != -1 {
+	if bytes.Index(safe_bytes, c_bytes) != -1 || bytes.Index(always_safe, c_bytes) != -1 {
 		return c_bytes;
 	}
 	else {
-		if bytes.Index(always_safe, c_bytes) != -1 {
-			return c_bytes;
-		}
-		else {
-			return strings.Bytes(fmt.Sprintf("%%%02X", c));
-		}
+		return strings.Bytes(fmt.Sprintf("%%%02X", c));
 	}
 	panic("unreachable");
 }
