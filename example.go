@@ -112,9 +112,9 @@ func TWITTER_REPLIES(c *http.Conn, req *http.Request) {
 		}
 		else {
 			log.Stderrf(":REPLIES:r:%s:finalUrl:%s", r, finalUrl);
-		        b, _ := io.ReadAll(r.Body);
-		        print ("REPLIES!");
-		        str := bytes.NewBuffer(b).String();
+			b, _ := io.ReadAll(r.Body);
+			print ("REPLIES!");
+			str := bytes.NewBuffer(b).String();
        			println (str);
 			j, ok, errtok := json.StringToJson(str);
 			log.Stderr("REPLIES:j:%s:ok:%s:errtok:%s", j, ok, errtok);
@@ -173,18 +173,18 @@ func LOGOUT(c *http.Conn, req *http.Request) {
 }
 
 func CALLBACK_YAHOO(c *http.Conn, req *http.Request) {
-        log.Stderr("CALLBACK YAHOO!");
-        CALLBACK(c, req, twitter_client);
+	log.Stderr("CALLBACK YAHOO!");
+	CALLBACK(c, req, twitter_client);
 }
 
 func CALLBACK_TWITTER(c *http.Conn, req *http.Request) {
-        log.Stderr("CALLBACK TWITTER!");
-        CALLBACK(c, req, twitter_client);
+	log.Stderr("CALLBACK TWITTER!");
+	CALLBACK(c, req, twitter_client);
 }
 
 func CALLBACK_GOOGLE(c *http.Conn, req *http.Request) {
-        log.Stderr("CALLBACK GOOGLE!");
-        CALLBACK(c, req, google_client);
+	log.Stderr("CALLBACK GOOGLE!");
+	CALLBACK(c, req, google_client);
 }
 
 // receives ?returnto=/replies etc.

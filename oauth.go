@@ -84,7 +84,7 @@ func (c *AuthClient) get_auth_token(callback_url string) *persist.Model { // *Au
 }
 
 func parse_response(r *http.Response) map[string]string {
-        b, _ := io.ReadAll(r.Body);
+	b, _ := io.ReadAll(r.Body);
 	print ("RESULT:");
 	s := bytes.NewBuffer(b).String();
 	println (s);
@@ -163,25 +163,25 @@ func Digest(key string, m string) string {
 
 // build the message to sign/digest
 func BuildMessage(url string, params map[string]string) string {
-        i := 0;
+	i := 0;
 	keys := make([]string,len(params));
-        for k,_ := range params {
+	for k,_ := range params {
 		keys[i] = k;
 		i = i + 1;
 	}
 	sort.SortStrings(keys);
 
 	j := 0;
-        mss := make([]string,len(params));
+	mss := make([]string,len(params));
 	for k := range keys {
-                mss[j] = urllib.Urlquote(keys[k]) + "=" + urllib.Urlquote(params[keys[k]]);
-                j = j + 1;
-        }
-        ms := strings.Join(mss, "&");
-        log.Stderrf("ms:%s", ms);
+		mss[j] = urllib.Urlquote(keys[k]) + "=" + urllib.Urlquote(params[keys[k]]);
+		j = j + 1;
+	}
+	ms := strings.Join(mss, "&");
+	log.Stderrf("ms:%s", ms);
 
-        m := strings.Join([]string{"GET", urllib.Urlquote(url), urllib.Urlquote(ms)}, "&");
-        log.Stderrf("m:%s", m);
+	m := strings.Join([]string{"GET", urllib.Urlquote(url), urllib.Urlquote(ms)}, "&");
+	log.Stderrf("m:%s", m);
 
 	return m;
 }
