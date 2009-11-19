@@ -54,7 +54,7 @@ type AuthClient struct {
 }
 
 func (c *AuthClient) get_auth_token(callback_url string) *AuthToken {
-	r, finalUrl, err := c.Make_request(c.request_url, map[string]string{"oauth_callback":callback_url}, "", false);
+	r, finalUrl, err := c.MakeRequest(c.request_url, map[string]string{"oauth_callback":callback_url}, "", false);
 	if r != nil {
 		log.Stderrf("get_auth_token:status:%s:finalUrl:%s", r.Status, finalUrl);
 		for k, v := range r.Header {
@@ -119,7 +119,7 @@ func (c *AuthClient) GetUserInfo(auth_token string, auth_verifier string) map[st
 	// get secret
 	auth_secret := get_auth_secret(auth_token);
 	log.Stderrf("AUTH_SECRET:%s", auth_secret); // should client error if not found
-	r, finalUrl, err := c.Make_request(c.access_url, map[string]string{"oauth_token":auth_token, "oauth_verifier":auth_verifier}, auth_secret, false);
+	r, finalUrl, err := c.MakeRequest(c.access_url, map[string]string{"oauth_token":auth_token, "oauth_verifier":auth_verifier}, auth_secret, false);
 	if r != nil {
 		log.Stderrf("get_access_token:status:%s:finalUrl:%s", r.Status, finalUrl);
 		for k, v := range r.Header {
@@ -168,7 +168,7 @@ func BuildMessage(url string, params map[string]string) string {
 	return m;
 }
 
-func (c *AuthClient) Make_request(url string, additional_params map[string]string, token_secret string, protected bool) (r *http.Response, finalURL string, err os.Error) {
+func (c *AuthClient) MakeRequest(url string, additional_params map[string]string, token_secret string, protected bool) (r *http.Response, finalURL string, err os.Error) {
 
 	log.Stderrf("make_request:url:%s:", url);
 	for k,v := range additional_params {
