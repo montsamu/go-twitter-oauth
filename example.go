@@ -45,6 +45,10 @@ var fmap = template.FormatterMap{
 	"url+html": UrlHtmlFormatter,
 }
 
+func UrlHtmlFormatter(w io.Writer, v interface{}, fmt string) {
+	template.HTMLEscape(w, strings.Bytes(http.URLEscape(v.(string))));
+}
+
 // TODO: figure out live reloading for Handlers? Is this easily possible?
 func main() {
 	flag.Parse();
@@ -168,85 +172,24 @@ func LOGOUT(c *http.Conn, req *http.Request) {
 	http.Redirect(c, "/", http.StatusFound); // allow returnto?
 }
 
-// TODO: how to generalize these callbacks as the only diff. is which client
-// google callback
-// receives ?returnto=/replies etc.
-func CALLBACK_GOOGLE(c *http.Conn, req *http.Request) {
-	log.Stderr("CALLBACK GOOGLE!");
-	req.ParseForm();
-	for k,v := range req.Header {
-		log.Stderrf("header:%s:%s", k, v);
-	}
-	for k,vs := range req.Form {
-		log.Stderrf("form:%s::", k);
-		for i := range vs {
-			log.Stderrf("::%s", vs[i]);
-		}
-	}
-
-	var auth_token = req.FormValue("oauth_token");
-	var auth_verifier = req.FormValue("oauth_verifier");
-	log.Stderrf("CALLBACK:auth_token:%s:", auth_token);
-	log.Stderrf("CALLBACK:auth_verifier:%s:", auth_verifier);
-
-	user_info := google_client.GetUserInfo(auth_token, auth_verifier);
-
-	log.Stderrf("USER_INFO:");
-	for k,v := range user_info {
-		log.Stderrf("k:%s v:%s", k, v);
-	}
-
-	session_service.StartSession(c, req, user_info);
-	var url = "/";
-	returnto := req.FormValue("returnto");
-	if returnto != "" {
-		url = returnto;
-	}
-	http.Redirect(c, url, http.StatusFound); // should be 303 instead of 302?
-}
-
-// TODO: how to generalize these callbacks as the only diff. is which client
-// yahoo callback
-// receives ?returnto=/replies etc.
 func CALLBACK_YAHOO(c *http.Conn, req *http.Request) {
-	log.Stderr("CALLBACK YAHOO!");
-	req.ParseForm();
-	for k,v := range req.Header {
-		log.Stderrf("header:%s:%s", k, v);
-	}
-	for k,vs := range req.Form {
-		log.Stderrf("form:%s::", k);
-		for i := range vs {
-			log.Stderrf("::%s", vs[i]);
-		}
-	}
-
-	var auth_token = req.FormValue("oauth_token");
-	var auth_verifier = req.FormValue("oauth_verifier");
-	log.Stderrf("CALLBACK:auth_token:%s:", auth_token);
-	log.Stderrf("CALLBACK:auth_verifier:%s:", auth_verifier);
-
-	user_info := yahoo_client.GetUserInfo(auth_token, auth_verifier);
-
-	log.Stderrf("USER_INFO:");
-	for k,v := range user_info {
-		log.Stderrf("k:%s v:%s", k, v);
-	}
-
-	session_service.StartSession(c, req, user_info);
-	var url = "/";
-	returnto := req.FormValue("returnto");
-	if returnto != "" {
-		url = returnto;
-	}
-	http.Redirect(c, url, http.StatusFound); // should be 303 instead of 302?
+        log.Stderr("CALLBACK YAHOO!");
+        CALLBACK(c, req, twitter_client);
 }
 
-// TODO: how to generalize these callbacks as the only diff. is which client
-// twitter callback
-// receives ?returnto=/replies etc.
 func CALLBACK_TWITTER(c *http.Conn, req *http.Request) {
-	log.Stderr("CALLBACK TWITTER!");
+        log.Stderr("CALLBACK TWITTER!");
+        CALLBACK(c, req, twitter_client);
+}
+
+func CALLBACK_GOOGLE(c *http.Conn, req *http.Request) {
+        log.Stderr("CALLBACK GOOGLE!");
+        CALLBACK(c, req, google_client);
+}
+
+// receives ?returnto=/replies etc.
+func CALLBACK(c *http.Conn, req *http.Request, auth_client *oauth.AuthClient) {
+	log.Stderr("CALLBACK!");
 	req.ParseForm();
 	for k,v := range req.Header {
 		log.Stderrf("header:%s:%s", k, v);
@@ -263,7 +206,7 @@ func CALLBACK_TWITTER(c *http.Conn, req *http.Request) {
 	log.Stderrf("CALLBACK:auth_token:%s:", auth_token);
 	log.Stderrf("CALLBACK:auth_verifier:%s:", auth_verifier);
 
-	user_info := twitter_client.GetUserInfo(auth_token, auth_verifier);
+	user_info := auth_client.GetUserInfo(auth_token, auth_verifier);
 
 	log.Stderrf("USER_INFO:");
 	for k,v := range user_info {
@@ -277,9 +220,5 @@ func CALLBACK_TWITTER(c *http.Conn, req *http.Request) {
 		url = returnto;
 	}
 	http.Redirect(c, url, http.StatusFound); // should be 303 instead of 302?
-}
-
-func UrlHtmlFormatter(w io.Writer, v interface{}, fmt string) {
-	template.HTMLEscape(w, strings.Bytes(http.URLEscape(v.(string))));
 }
 
