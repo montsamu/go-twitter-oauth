@@ -65,7 +65,7 @@ func (c *AuthClient) get_auth_token(callback_url string) *AuthToken {
 		log.Stderrf("get_auth_token:finalUrl:%s:err:%s", finalUrl, err.String());
 	}
 
-	kvmap := parse_response(r);
+	kvmap := parse_response(r); // check for 503
 	// oauth_callback_confirmed=true assert?
 	token := create_auth_token( kvmap["oauth_token"], kvmap["oauth_token_secret"] );
 	return token;
@@ -80,7 +80,7 @@ func parse_response(r *http.Response) map[string]string {
 	kvmap := make(map[string]string, len(vals));
 	for i := range vals { // TODO: this crashes server for bad response right now
 		kv := strings.Split(vals[i], "=", 2);
-		kvmap[kv[0]] = kv[1];
+		kvmap[kv[0]] = kv[1]; // breaks server here on 503 not avail
 	}
 	// TODO: close r.Body ?
 	return kvmap;
@@ -122,7 +122,7 @@ func (c *AuthClient) GetUserInfo(auth_token string, auth_verifier string) map[st
 	else {
 		log.Stderrf("get_access_token:finalUrl:%s:err:%s", finalUrl, err.String());
 	}
-	kvmap := parse_response(r);
+	kvmap := parse_response(r); // check for 503
 	return kvmap;
 }
 

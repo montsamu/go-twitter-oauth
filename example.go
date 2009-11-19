@@ -22,6 +22,8 @@ var twitter_consumer_secret = "my_consumer_secret";
 var twitter_callback_url = "http://my.base.url/callback/twitter";
 var twitter_client = oauth.NewTwitterClient(twitter_consumer_key, twitter_consumer_secret, "authenticate");
 
+var session_service = session.NewSessionService("Example-Id");
+
 var addr = flag.String("addr", ":8080", "http service address")
 var maxprocs = flag.Int("maxprocs", 4, "max server processes")
 var fmap = template.FormatterMap{
@@ -62,18 +64,18 @@ func get_template(s string) *template.Template {
 // TODO: cookie domain site param?
 // TODO: cookie exparation
 func DEFAULT(c *http.Conn, req *http.Request) {
-	s := session.GetSession(c,req);
-	log.Stderrf("session data:%s", s.Sid);
+	s := session_service.GetSession(c,req);
+	log.Stderrf("session data:%s", s.Id);
 	for k,v := range s.Data {
 		log.Stderrf("session kv:%s:%s", k, v);
 	}
 	var defaultTemplate = get_template("default.html");
-	defaultTemplate.Execute(s.Sid, c);
+	defaultTemplate.Execute(s.Id, c);
 }
 
 func REPLIES(c *http.Conn, req *http.Request) {
 	log.Stderrf(">REPLIES:");
-	s := session.GetSession(c,req);
+	s := session_service.GetSession(c,req);
 	auth_token, atx := s.Data["oauth_token"];
 	if atx {
 		auth_token_secret := s.Data["oauth_token_secret"];
@@ -138,7 +140,7 @@ func CALLBACK_TWITTER(c *http.Conn, req *http.Request) {
 		log.Stderrf("k:%s v:%s", k, v);
 	}
 
-	session.StartSession(c, req, user_info);
+	session_service.StartSession(c, req, user_info);
 	var url = "/";
 	returnto := req.FormValue("returnto");
 	if returnto != "" {
