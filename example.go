@@ -17,14 +17,16 @@ import (
 	"json";
 )
 
+var oauth_persist_service = persist.NewPersistService("tokens");
+
 // TODO: pull this twitter conf. stuff out to configuration not compilation
 var twitter_consumer_key = "my_consumer_key";
 var twitter_consumer_secret = "my_consumer_secret";
 var twitter_callback_url = "http://my.base.url/callback/twitter";
-var twitter_client = oauth.NewTwitterClient(twitter_consumer_key, twitter_consumer_secret, "authenticate");
+var twitter_client = oauth.NewTwitterClient(oauth_persist_service, twitter_consumer_key, twitter_consumer_secret, "authenticate");
 
 var session_persist_service = persist.NewPersistService("sessions");
-var session_service = session.NewSessionService("Example-Id", session_persist_service);
+var session_service = session.NewSessionService(session_persist_service, "Example-Id");
 
 var addr = flag.String("addr", ":8080", "http service address")
 var maxprocs = flag.Int("maxprocs", 4, "max server processes")

@@ -17,7 +17,7 @@ import (
 type SessionService struct {Name string; persist_service *persist.PersistService}; // sessions map[string]Session};
 
 // e.g. name "MyService-Id"
-func NewSessionService(name string, ps *persist.PersistService) *SessionService {
+func NewSessionService(ps *persist.PersistService, name string) *SessionService {
 	ss := new(SessionService);
 	ss.Name = name;
 	ss.persist_service = ps;

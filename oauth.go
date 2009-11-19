@@ -3,6 +3,8 @@ package oauth
 
 import (
 	"urllib";
+	"persist";
+
 	"os";
 	"sort";
 	"io";
@@ -16,35 +18,45 @@ import (
 	"time";
 	"crypto/hmac";
 	"encoding/base64";
-	"container/vector";
+	// "container/vector";
 )
 
-type AuthToken struct {Service string; Token string; Secret string; Created *time.Time};
+// type AuthToken struct {Service string; Token string; Secret string; Created *time.Time};
 
 // TODO: discover/write some persistence layer
 // TODO: real persistence, not in-memory, thread-unsafe? nonsense
-var tokens = vector.New(100);
+// var tokens = vector.New(100);
 
-func create_auth_token(token string, secret string) *AuthToken {
-	t := new(AuthToken);
-	t.Token = token;
-	t.Secret = secret;
-	t.Created = time.UTC();
-	tokens.Push(*t); // TODO: obvious this is terrible "persistence"
+func create_auth_token(ps *persist.PersistService, token string, secret string) *persist.Model { // *AuthToken {
+	t := ps.New(token, map[string]string{"secret":secret});
+	// t := new(AuthToken);
+	// t.Token = token;
+	// t.Secret = secret;
+	// t.Created = time.UTC();
+	// tokens.Push(*t); // TODO: obvious this is terrible "persistence"
 	return t;
 }
 
 // TODO: obvious things this is terrible
-func get_auth_secret(auth_token string) string {
-	for n := range tokens.Data() {
-		t := tokens.At(n);
-		token, _ := t.(AuthToken);
-		if token.Token == auth_token { return token.Secret };
+func get_auth_secret(ps *persist.PersistService, auth_token string) string {
+	t, found := ps.Get(auth_token);
+	if found {
+		return t.Data["secret"];
 	}
-	return "BAD_TOKEN"; // TODO: better handling this is terrible
+	else {
+		return "BAD_TOKEN"; // TODO better handling
+	}
+	panic("unreachable");
+	// for n := range tokens.Data() {
+	// 	t := tokens.At(n);
+	// 	token, _ := t.(AuthToken);
+	// 	if token.Token == auth_token { return token.Secret };
+	// }
+	// return "BAD_TOKEN"; // TODO: better handling this is terrible
 }
 
 type AuthClient struct {
+	persist_service *persist.PersistService;
 	service_name string; // e.g. "twitter" "yahoo" etc.
 	consumer_key string;
 	consumer_secret string;
@@ -53,7 +65,7 @@ type AuthClient struct {
 	authorization_url string; // where to authorize
 }
 
-func (c *AuthClient) get_auth_token(callback_url string) *AuthToken {
+func (c *AuthClient) get_auth_token(callback_url string) *persist.Model { // *AuthToken {
 	r, finalUrl, err := c.MakeRequest(c.request_url, map[string]string{"oauth_callback":callback_url}, "", false);
 	if r != nil {
 		log.Stderrf("get_auth_token:status:%s:finalUrl:%s", r.Status, finalUrl);
@@ -67,7 +79,7 @@ func (c *AuthClient) get_auth_token(callback_url string) *AuthToken {
 
 	kvmap := parse_response(r); // check for 503
 	// oauth_callback_confirmed=true assert?
-	token := create_auth_token( kvmap["oauth_token"], kvmap["oauth_token_secret"] );
+	token := create_auth_token( c.persist_service, kvmap["oauth_token"], kvmap["oauth_token_secret"] );
 	return token;
 }
 
@@ -86,8 +98,9 @@ func parse_response(r *http.Response) map[string]string {
 	return kvmap;
 }
 
-func NewAuthClient(service_name string, consumer_key string, consumer_secret string, request_url string, access_url string, authorization_url string) *AuthClient {
+func NewAuthClient(ps *persist.PersistService, service_name string, consumer_key string, consumer_secret string, request_url string, access_url string, authorization_url string) *AuthClient {
 	c := new(AuthClient);
+	c.persist_service = ps;
 	c.consumer_key = consumer_key;
 	c.consumer_secret = consumer_secret;
 	c.request_url = request_url;
@@ -97,20 +110,20 @@ func NewAuthClient(service_name string, consumer_key string, consumer_secret str
 }
 
 // authorization_type: authenticate | authorize
-func NewTwitterClient(consumer_key string, consumer_secret string, authorization_type string) *AuthClient {
-	return NewAuthClient("twitter", consumer_key, consumer_secret, "http://twitter.com/oauth/request_token", "http://twitter.com/oauth/access_token", "http://twitter.com/oauth/"+authorization_type);
+func NewTwitterClient(ps *persist.PersistService, consumer_key string, consumer_secret string, authorization_type string) *AuthClient {
+	return NewAuthClient(ps, "twitter", consumer_key, consumer_secret, "http://twitter.com/oauth/request_token", "http://twitter.com/oauth/access_token", "http://twitter.com/oauth/"+authorization_type);
 }
 
 func (c *AuthClient) GetAuthorizationUrl(callback_url string) string {
 	token := c.get_auth_token(callback_url);
-	log.Stderrf("get_authorization_url:token:%s:secret:%s", token.Token, token.Secret);
-	return c.authorization_url + "?oauth_token=" + token.Token + "&oauth_callback=" + urllib.Urlquote(callback_url);
+	log.Stderrf("get_authorization_url:token:%s:secret:%s", token.Id, token.Data["secret"]);
+	return c.authorization_url + "?oauth_token=" + token.Id + "&oauth_callback=" + urllib.Urlquote(callback_url);
 }
 
 // TODO: all
 func (c *AuthClient) GetUserInfo(auth_token string, auth_verifier string) map[string]string {
 	// get secret
-	auth_secret := get_auth_secret(auth_token);
+	auth_secret := get_auth_secret(c.persist_service, auth_token);
 	log.Stderrf("AUTH_SECRET:%s", auth_secret); // should client error if not found
 	r, finalUrl, err := c.MakeRequest(c.access_url, map[string]string{"oauth_token":auth_token, "oauth_verifier":auth_verifier}, auth_secret, false);
 	if r != nil {

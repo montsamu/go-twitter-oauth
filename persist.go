@@ -4,6 +4,7 @@ package persist
 import (
 	"path";
 	"io";
+	"syscall";
 	"log";
 	"bytes";
 	"strings";
@@ -74,12 +75,19 @@ func parse_model_data(bs []byte) map[string]string {
 
 func (ps *PersistService) New(id string, data map[string]string) *Model {
 	// TODO: malicious id path
-	mpath := path.Join(ps.Path, id);
+	log.Stderrf(":NEW:id:%s", id);
+	for k,v := range data {
+		log.Stderrf("NEW:k:%s:v:%s", k, v);
+	}
+
 	m := new(Model);
 	m.Id = id;
 	m.Data = data;
+
 	bs := unparse_model_data(m.Data);
-	e := io.WriteFile(mpath, bs, 00200|00400); // os.O_WRONLY|os.O_CREATE|os.O_TRUNC);
+
+	mpath := path.Join(ps.Path, id);
+	e := io.WriteFile(mpath, bs, syscall.S_IWUSR|syscall.S_IRUSR); // 00200|00400); // os.O_WRONLY|os.O_CREATE|os.O_TRUNC);
 	if e != nil {
 		// TODO: better error handling
 		return nil;
