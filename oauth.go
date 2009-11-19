@@ -65,13 +65,6 @@ func (c *AuthClient) get_auth_token(callback_url string) *AuthToken {
 		log.Stderrf("get_auth_token:finalUrl:%s:err:%s", finalUrl, err.String());
 	}
 
-	// parse out the tokens in data
-	// buffr := bufio.NewReader(r.Body);
-	// reqr, err := http.ReadRequest(buffr);
-	// oauth_token := reqr.FormValue("oauth_token");
-	// oauth_token_secret := reqr.FormValue("oauth_token_secret");
-	// r.Body.Close();
-	// var b []byte; 
 	kvmap := parse_response(r);
 	// oauth_callback_confirmed=true assert?
 	token := create_auth_token( kvmap["oauth_token"], kvmap["oauth_token_secret"] );
