@@ -51,11 +51,10 @@ type AuthClient struct {
 	request_url string; // where to request tokens
 	access_url string; // where to exchange access tokens
 	authorization_url string; // where to authorize
-	callback_url string; // where authorization callback should return
 }
 
-func (c *AuthClient) get_auth_token() *AuthToken {
-	r, finalUrl, err := c.Make_request(c.request_url, map[string]string{"oauth_callback":c.callback_url}, "", false);
+func (c *AuthClient) get_auth_token(callback_url string) *AuthToken {
+	r, finalUrl, err := c.Make_request(c.request_url, map[string]string{"oauth_callback":callback_url}, "", false);
 	if r != nil {
 		log.Stderrf("get_auth_token:status:%s:finalUrl:%s", r.Status, finalUrl);
 		for k, v := range r.Header {
@@ -94,26 +93,25 @@ func get_result(r *http.Response) map[string]string {
 	return kvmap;
 }
 
-func NewAuthClient(service_name string, consumer_key string, consumer_secret string, callback_url string, request_url string, access_url string, authorization_url string) *AuthClient {
+func NewAuthClient(service_name string, consumer_key string, consumer_secret string, request_url string, access_url string, authorization_url string) *AuthClient {
 	c := new(AuthClient);
 	c.consumer_key = consumer_key;
 	c.consumer_secret = consumer_secret;
 	c.request_url = request_url;
 	c.access_url = access_url;
 	c.authorization_url = authorization_url;
-	c.callback_url = callback_url;
 	return c;
 }
 
 // authorization_type: authenticate | authorize
-func NewTwitterClient(consumer_key string, consumer_secret string, callback_url string, authorization_type string) *AuthClient {
-	return NewAuthClient("twitter", consumer_key, consumer_secret, callback_url, "http://twitter.com/oauth/request_token", "http://twitter.com/oauth/access_token", "http://twitter.com/oauth/"+authorization_type);
+func NewTwitterClient(consumer_key string, consumer_secret string, authorization_type string) *AuthClient {
+	return NewAuthClient("twitter", consumer_key, consumer_secret, "http://twitter.com/oauth/request_token", "http://twitter.com/oauth/access_token", "http://twitter.com/oauth/"+authorization_type);
 }
 
-func (c *AuthClient) Get_authorization_url() string {
-	token := c.get_auth_token();
+func (c *AuthClient) GetAuthorizationUrl(callback_url string) string {
+	token := c.get_auth_token(callback_url);
 	log.Stderrf("get_authorization_url:token:%s:secret:%s", token.Token, token.Secret);
-	return c.authorization_url + "?oauth_token=" + token.Token + "&oauth_callback=" + urllib.Urlquote(c.callback_url);
+	return c.authorization_url + "?oauth_token=" + token.Token + "&oauth_callback=" + urllib.Urlquote(callback_url);
 }
 
 // TODO: all
