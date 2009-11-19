@@ -45,6 +45,7 @@ func main() {
 	http.Handle("/replies", http.HandlerFunc(REPLIES));
 	http.Handle("/login/twitter", http.HandlerFunc(LOGIN_TWITTER));
 	http.Handle("/callback/twitter", http.HandlerFunc(CALLBACK_TWITTER));
+	http.Handle("/logout", http.HandlerFunc(LOGOUT));
 	http.Handle("/static/", http.FileServer("./static/", "/static/"));
 	http.Handle("/favicon.ico", http.FileServer("./static/", "/"));
 	err := http.ListenAndServe(*addr, nil);
@@ -115,6 +116,11 @@ func LOGIN_TWITTER(c *http.Conn, req *http.Request) {
 	authorization_url := twitter_client.GetAuthorizationUrl(url);
 	log.Stderrf("LOGIN:authorization_url:%s", authorization_url);
 	http.Redirect(c, authorization_url, http.StatusFound); // should be 303 instead of 302?
+}
+
+func LOGOUT(c *http.Conn, req *http.Request) {
+	session_service.EndSession(c, req);
+	http.Redirect(c, "/", http.StatusFound); // allow returnto?
 }
 
 // twitter callback

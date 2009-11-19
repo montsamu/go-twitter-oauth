@@ -25,18 +25,23 @@ func NewSessionService(ps *persist.PersistService, name string) *SessionService 
 	return ss;
 }
 
-// TODO: synchronized for multithreading
-// TODO: use real persistent sessions not in-memory map
-// TODO: refactor out "cookie" handling
-func (ss *SessionService) GetSession(c *http.Conn, req *http.Request) *persist.Model {
-	log.Stderrf(">GetSession");
+func (ss *SessionService) EndSession(c *http.Conn, req *http.Request) {
+	s := ss.getSessionId(req);
+	if s != "" {
+		ss.persist_service.Del(s);
+	}
+}
+
+// TODO: synchronized for multithreading?
+func (ss *SessionService) getSessionId(req *http.Request) string {
+	log.Stderrf(">getSessionId");
+	var cookie_v = "";
 	cookie_val, has_cookie := req.Header["Cookie"];
 	if has_cookie {
-		log.Stderrf(":GetSession:has_cookie:%s", cookie_val);
+		log.Stderrf(":getSessionId:has_cookie:%s", cookie_val);
 		// TODO: this could crash server if malicious bad cookie is sent?
 		// TODO: look for key Name-Id
 		// sid=sid-0ce4603e-837d-4247-959e-6c17ef71d226; sid=sid-134020434
-		var cookie_v = "";
 		cookie_lines := strings.Split(cookie_val, "; ", 0);
 		for cookie_i := range cookie_lines {
 			cookie_line := cookie_lines[cookie_i];
@@ -48,25 +53,27 @@ func (ss *SessionService) GetSession(c *http.Conn, req *http.Request) *persist.M
 				break;
 			}
 		}
-		if cookie_v == "" {
-			log.Stderrf(":GetSession:no_cookie_v");
-			return ss.StartSession(c, req, map[string]string{}); // json.Null);
-		} else {
-			s, has_session := ss.persist_service.Get(cookie_v);
-				// ss.sessions[cookie_v];
-			if has_session {
-				log.Stderrf(":GetSession:has_session:%s", s.Id);
-				return s;
-			}
-			else {
-				log.Stderrf(":GetSession:no_session");
-				return ss.StartSession(c, req, map[string]string{}); // json.Null);
-			}
-		}
 	}
-	else {
-		log.Stderrf(":GetSession:no_cookie");
+	// else log.Stderrf(":GetSession:no_cookie");
+	return cookie_v;
+}
+
+func (ss *SessionService) GetSession(c *http.Conn, req *http.Request) *persist.Model {
+	cookie_v := ss.getSessionId(req);
+	if cookie_v == "" {
+		log.Stderrf(":GetSession:no_cookie_v");
 		return ss.StartSession(c, req, map[string]string{}); // json.Null);
+	} else {
+		s, has_session := ss.persist_service.Get(cookie_v);
+			// ss.sessions[cookie_v];
+		if has_session {
+			log.Stderrf(":GetSession:has_session:%s", s.Id);
+			return s;
+		}
+		else {
+			log.Stderrf(":GetSession:no_session");
+			return ss.StartSession(c, req, map[string]string{}); // json.Null);
+		}
 	}
 	panic("unreachable");
 }

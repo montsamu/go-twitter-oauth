@@ -4,6 +4,7 @@ package persist
 import (
 	"path";
 	"io";
+	"os";
 	"syscall";
 	"log";
 	"bytes";
@@ -71,6 +72,14 @@ func parse_model_data(bs []byte) map[string]string {
 	
 	}
 	return data;
+}
+
+func (ps *PersistService) Del(id string) os.Error {
+	// TODO: malicious id path
+	log.Stderrf(":DEL:id:%s", id);
+	mpath := path.Join(ps.Path, id);
+	e := os.Remove(mpath);
+	return e;
 }
 
 func (ps *PersistService) New(id string, data map[string]string) *Model {
