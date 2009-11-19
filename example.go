@@ -4,7 +4,6 @@ package main
 import (
 	"oauth";
 	"session";
-	"persist";
 	"flag";
 	"http";
 	"io";
@@ -15,15 +14,26 @@ import (
 	"runtime";
 	"bytes";
 	"json";
+	"persist";
 )
 
 var oauth_persist_service = persist.NewPersistService("tokens");
 
 // TODO: pull this twitter conf. stuff out to configuration not compilation
-var twitter_consumer_key = "my_consumer_key";
-var twitter_consumer_secret = "my_consumer_secret";
-var twitter_callback_url = "http://my.base.url/callback/twitter";
+var twitter_callback_url = "http://my.url/callback/twitter";
+var twitter_consumer_key = "myconsumerkey";
+var twitter_consumer_secret = "myconsumersecret";
 var twitter_client = oauth.NewTwitterClient(oauth_persist_service, twitter_consumer_key, twitter_consumer_secret, "authenticate");
+
+var yahoo_callback_url = "http://my.url/callback/yahoo";
+var yahoo_consumer_key = "myconsumerkey";
+var yahoo_consumer_secret = "myconsumersecret";
+var yahoo_client = oauth.NewYahooClient(oauth_persist_service, yahoo_consumer_key, yahoo_consumer_secret);
+
+var google_callback_url = "http://my.url/callback/google";
+var google_consumer_key = "myconsumerkey";
+var google_consumer_secret = "myconsumersecret";
+var google_client = oauth.NewGoogleClient(oauth_persist_service, google_consumer_key, google_consumer_secret);
 
 var session_persist_service = persist.NewPersistService("sessions");
 var session_service = session.NewSessionService(session_persist_service, "Example-Id");
@@ -42,9 +52,13 @@ func main() {
 	// TODO: use a map datastructure of some type? nah. this works.
 	// BUG?: "/" basically passes everything which doesn't match anything else :(
 	http.Handle("/", http.HandlerFunc(DEFAULT));
-	http.Handle("/replies", http.HandlerFunc(REPLIES));
+	http.Handle("/twitter/replies", http.HandlerFunc(TWITTER_REPLIES));
 	http.Handle("/login/twitter", http.HandlerFunc(LOGIN_TWITTER));
 	http.Handle("/callback/twitter", http.HandlerFunc(CALLBACK_TWITTER));
+	http.Handle("/login/yahoo", http.HandlerFunc(LOGIN_YAHOO));
+	http.Handle("/callback/yahoo", http.HandlerFunc(CALLBACK_YAHOO));
+	http.Handle("/login/google", http.HandlerFunc(LOGIN_GOOGLE));
+	http.Handle("/callback/google", http.HandlerFunc(CALLBACK_GOOGLE));
 	http.Handle("/logout", http.HandlerFunc(LOGOUT));
 	http.Handle("/static/", http.FileServer("./static/", "/static/"));
 	http.Handle("/favicon.ico", http.FileServer("./static/", "/"));
@@ -70,7 +84,7 @@ func get_template(s string) *template.Template {
 // TODO: cookie exparation
 func DEFAULT(c *http.Conn, req *http.Request) {
 	s := session_service.GetSession(c,req);
-	log.Stderrf("session data:%s", s.Id);
+	log.Stderrf("session data id:%s", s.Id);
 	for k,v := range s.Data {
 		log.Stderrf("session kv:%s:%s", k, v);
 	}
@@ -78,11 +92,15 @@ func DEFAULT(c *http.Conn, req *http.Request) {
 	defaultTemplate.Execute(s.Id, c);
 }
 
-func REPLIES(c *http.Conn, req *http.Request) {
+func TWITTER_REPLIES(c *http.Conn, req *http.Request) {
 	log.Stderrf(">REPLIES:");
 	s := session_service.GetSession(c,req);
+	for k,v := range s.Data {
+		log.Stderrf("session kv:%s:%s", k, v);
+	}
 	auth_token, atx := s.Data["oauth_token"];
 	if atx {
+		log.Stderrf("TOKEN FOUND!");
 		auth_token_secret := s.Data["oauth_token_secret"];
 		r, finalUrl, err := twitter_client.MakeRequest("http://twitter.com/statuses/mentions.json", map[string]string{"oauth_token":auth_token}, auth_token_secret, false); //{"since_id":s.last_reply_id})
 		if err != nil {
@@ -101,7 +119,8 @@ func REPLIES(c *http.Conn, req *http.Request) {
 	
 	}
 	else {
-		http.Redirect(c, "/login/twitter?returnto=/replies", http.StatusFound); // should be 303 instead of 302?
+		log.Stderrf("NO TOKEN FOUND!");
+		http.Redirect(c, "/login/twitter?returnto=/twitter/replies", http.StatusFound); // should be 303 instead of 302?
 	}
 }
 
@@ -118,15 +137,116 @@ func LOGIN_TWITTER(c *http.Conn, req *http.Request) {
 	http.Redirect(c, authorization_url, http.StatusFound); // should be 303 instead of 302?
 }
 
+// accepts ?returnto=/replies etc.
+func LOGIN_GOOGLE(c *http.Conn, req *http.Request) {
+	log.Stderr("GOOGLE!");
+	var url = google_callback_url;
+	returnto := req.FormValue("returnto");
+	if returnto != "" {
+		url = url + "?returnto=" + returnto;
+	}
+	authorization_url := google_client.GetAuthorizationUrl(url);
+	log.Stderrf("LOGIN:authorization_url:%s", authorization_url);
+	http.Redirect(c, authorization_url, http.StatusFound); // should be 303 instead of 302?
+}
+
+// accepts ?returnto=/replies etc.
+func LOGIN_YAHOO(c *http.Conn, req *http.Request) {
+	log.Stderr("YAHOO!");
+	var url = yahoo_callback_url;
+	returnto := req.FormValue("returnto");
+	if returnto != "" {
+		url = url + "?returnto=" + returnto;
+	}
+	authorization_url := yahoo_client.GetAuthorizationUrl(url);
+	log.Stderrf("LOGIN:authorization_url:%s", authorization_url);
+	http.Redirect(c, authorization_url, http.StatusFound); // should be 303 instead of 302?
+}
+
 func LOGOUT(c *http.Conn, req *http.Request) {
 	session_service.EndSession(c, req);
 	http.Redirect(c, "/", http.StatusFound); // allow returnto?
 }
 
+// TODO: how to generalize these callbacks as the only diff. is which client
+// google callback
+// receives ?returnto=/replies etc.
+func CALLBACK_GOOGLE(c *http.Conn, req *http.Request) {
+	log.Stderr("CALLBACK GOOGLE!");
+	req.ParseForm();
+	for k,v := range req.Header {
+		log.Stderrf("header:%s:%s", k, v);
+	}
+	for k,vs := range req.Form {
+		log.Stderrf("form:%s::", k);
+		for i := range vs {
+			log.Stderrf("::%s", vs[i]);
+		}
+	}
+
+	var auth_token = req.FormValue("oauth_token");
+	var auth_verifier = req.FormValue("oauth_verifier");
+	log.Stderrf("CALLBACK:auth_token:%s:", auth_token);
+	log.Stderrf("CALLBACK:auth_verifier:%s:", auth_verifier);
+
+	user_info := google_client.GetUserInfo(auth_token, auth_verifier);
+
+	log.Stderrf("USER_INFO:");
+	for k,v := range user_info {
+		log.Stderrf("k:%s v:%s", k, v);
+	}
+
+	session_service.StartSession(c, req, user_info);
+	var url = "/";
+	returnto := req.FormValue("returnto");
+	if returnto != "" {
+		url = returnto;
+	}
+	http.Redirect(c, url, http.StatusFound); // should be 303 instead of 302?
+}
+
+// TODO: how to generalize these callbacks as the only diff. is which client
+// yahoo callback
+// receives ?returnto=/replies etc.
+func CALLBACK_YAHOO(c *http.Conn, req *http.Request) {
+	log.Stderr("CALLBACK YAHOO!");
+	req.ParseForm();
+	for k,v := range req.Header {
+		log.Stderrf("header:%s:%s", k, v);
+	}
+	for k,vs := range req.Form {
+		log.Stderrf("form:%s::", k);
+		for i := range vs {
+			log.Stderrf("::%s", vs[i]);
+		}
+	}
+
+	var auth_token = req.FormValue("oauth_token");
+	var auth_verifier = req.FormValue("oauth_verifier");
+	log.Stderrf("CALLBACK:auth_token:%s:", auth_token);
+	log.Stderrf("CALLBACK:auth_verifier:%s:", auth_verifier);
+
+	user_info := yahoo_client.GetUserInfo(auth_token, auth_verifier);
+
+	log.Stderrf("USER_INFO:");
+	for k,v := range user_info {
+		log.Stderrf("k:%s v:%s", k, v);
+	}
+
+	session_service.StartSession(c, req, user_info);
+	var url = "/";
+	returnto := req.FormValue("returnto");
+	if returnto != "" {
+		url = returnto;
+	}
+	http.Redirect(c, url, http.StatusFound); // should be 303 instead of 302?
+}
+
+// TODO: how to generalize these callbacks as the only diff. is which client
 // twitter callback
 // receives ?returnto=/replies etc.
 func CALLBACK_TWITTER(c *http.Conn, req *http.Request) {
-	log.Stderr("CALLBACK!");
+	log.Stderr("CALLBACK TWITTER!");
 	req.ParseForm();
 	for k,v := range req.Header {
 		log.Stderrf("header:%s:%s", k, v);

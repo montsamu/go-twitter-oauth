@@ -114,6 +114,18 @@ func NewTwitterClient(ps *persist.PersistService, consumer_key string, consumer_
 	return NewAuthClient(ps, "twitter", consumer_key, consumer_secret, "http://twitter.com/oauth/request_token", "http://twitter.com/oauth/access_token", "http://twitter.com/oauth/"+authorization_type);
 }
 
+// does not work: http.Get does not support https
+func NewYahooClient(ps *persist.PersistService, consumer_key string, consumer_secret string) *AuthClient {
+	return NewAuthClient(ps, "yahoo", consumer_key, consumer_secret, "https://api.login.yahoo.com/oauth/v2/get_request_token", "https://api.login.yahoo.com/oauth/v2/get_token", "https://api.login.yahoo.com/oauth/v2/request_auth");
+
+}
+
+// http.Get does not support https
+func NewGoogleClient(ps *persist.PersistService, consumer_key string, consumer_secret string) *AuthClient { // scope? []string ?
+	return NewAuthClient(ps, "google", consumer_key, consumer_secret, "https://www.google.com/accounts/OAuthGetRequestToken", "https://www.google.com/accounts/OAuthGetAccessToken", "https://www.google.com/accounts/OAuthAuthorizeToken");
+
+}
+
 func (c *AuthClient) GetAuthorizationUrl(callback_url string) string {
 	token := c.get_auth_token(callback_url);
 	log.Stderrf("get_authorization_url:token:%s:secret:%s", token.Id, token.Data["secret"]);
